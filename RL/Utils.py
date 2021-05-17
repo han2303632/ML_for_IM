@@ -51,12 +51,15 @@ class Util:
 
         node2idx = {}
         idx2node ={}
+        gcn_embedding = []
 
         for i, key in enumerate(embeddings_dict.keys()):
             embeddings[i][0] = len(node2neighbors[key])
             embeddings[i][1] = node2score[key]
             node2idx[key] = i
             idx2node[i] = key
+            gcn_embedding.append(embeddings_dict[key])
+        gcn_embedding.append(np.zeros(len(gcn_embedding[0])))
 
         # normalize
         scaler = StandardScaler()
@@ -66,7 +69,8 @@ class Util:
         top_nodes_idx = [node2idx[node] for node in top_nodes]
 
         # return graph, embedding_norm, graph_size, top_nodes_idx, node2neighbors, idx2node, node2idx
-        return None, embedding_norm, None, top_nodes_idx, node2neighbors, idx2node, node2idx
+        # return None, embedding_norm, None, top_nodes_idx, node2neighbors, idx2node, node2idx
+        return None, embedding_norm, None, top_nodes_idx, node2neighbors, idx2node, node2idx, gcn_embedding
 
 
 

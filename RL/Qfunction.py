@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.nn import init
 
 class Qfunction(nn.Module):
     def __init__(self, embed_size,lr):
@@ -13,6 +14,7 @@ class Qfunction(nn.Module):
         self.lin4 = nn.Linear(3 *(embed_size + 1), 1, bias=False)
 
         self.optimizer = optim.Adam(self.parameters(), lr=lr)
+
 
 
     def forward(self, seeds_max_mat, candidates_max_mat, candidates_emb, batch_size):

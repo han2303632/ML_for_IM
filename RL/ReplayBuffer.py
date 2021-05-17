@@ -22,6 +22,6 @@ class ReplayBuffer():
 
     def sampling(self, batch_size):
         max_mem = min(self.mem_size, self.counter)
-        batch = np.random.choice(max_mem, batch_size, replace=False)
+        batch = np.random.choice(max_mem, batch_size, replace=True)
         return [self.tuple[i] for i in batch]
 

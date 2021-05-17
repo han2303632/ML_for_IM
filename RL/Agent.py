@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import torch.nn as nn
 import os
+import torch.utils.data as Data
 from ReplayBuffer import ReplayBuffer
 from Qfunction import Qfunction
 
@@ -15,6 +16,7 @@ class Agent:
         self.embed_size = embed_size
 
         if os.path.exists(model_dir):
+            print("load model:", model_dir)
             self.Qfunc = torch.load(model_dir)
         else:
             self.Qfunc = Qfunction(embed_size, lr)
@@ -31,7 +33,7 @@ class Agent:
     def choose_action(self, step, embedding,  seeds_idx, candidates_idx, eval_loss=False):
         action = 0
         reward = 0
-        epsilon = max(0.05, 0.9**(step+1))   # 感觉这里有问题
+        epsilon = max(0.8, 0.9**(step+1))   # 感觉这里有问题
         randOutput = np.random.rand()
         candidates_size = len(candidates_idx)
 
@@ -46,24 +48,24 @@ class Agent:
         for act,value in zip(q_action,q_value):
             act = int(act)
             value = float(value)
-            if act not in seeds_idx:
-                action = candidates_idx[act]
-                reward = value
-                break
+            # if act not in seeds_idx:
+            action = candidates_idx[act]
+            reward = value
+            break
 
         if not eval_loss and (randOutput < epsilon or step == 0):
             print("rand choise")
             action = np.random.choice(candidates_idx, size=1)[0]
 
         # 预测阶段，第一个点为质量最大的点
-        # if eval_loss and step == 0:
-        #     action = candidates_idx[0]
+        if eval_loss and step == 0:
+            action = candidates_idx[0]
 
         # self.seeds_emb[step] = embedding[action].clone()
         # self.seeds_emb = torch.cat((self.seeds_emb[torch.randperm(step+1)],self.seeds_emb[step+1:]),dim=0)
         # save seed cand v embed
         if not eval_loss:
-            self.s_c_v_emb.append([seeds_max_mat[0], candidates_max_mat[0], embedding[action].clone()])
+            self.s_c_v_emb.append([seeds_max_mat[0].clone(), candidates_max_mat[0].clone(), embedding[action].clone()])
 
         return action, reward;
 
@@ -103,8 +105,9 @@ class Agent:
         mu_v_list = []
         # seeds_emb_list = []
 
-        batch = self.memory.sampling(batch_size)
 
+        '''
+        batch = self.memory.sampling(batch_size)
         for episode, step, seeds_idx, candidates_idx, long_term_reward, mu_s, mu_c, mu_v in batch:
             _, pred_reward = self.choose_action(step, embedding_history[episode][step],  seeds_idx, candidates_idx, eval_loss=True)
             y_train.append(long_term_reward + self.gamma*pred_reward)
@@ -126,6 +129,50 @@ class Agent:
         loss.backward()
         self.Qfunc.optimizer.step()
 
+        print("parameter update")
+        for epoch in range(3):
+            for episode, step, seeds_idx, candidates_idx, long_term_reward, mu_s, mu_c, mu_v in batch:
+                _, pred_reward = self.choose_action(step, embedding_history[episode][step],  seeds_idx, candidates_idx, eval_loss=True)
+                y_train = [long_term_reward + self.gamma*pred_reward]
+                mu_s_list = [mu_s]
+                mu_c_list = [mu_c]
+                mu_v_list = [mu_v]
+                self.Qfunc.optimizer.zero_grad()
+                Q = self.Qfunc(torch.stack(mu_s_list, 0), torch.stack(mu_c_list, 0), torch.stack(mu_v_list, 0), 1)
+                loss = torch.mean(torch.pow(Q - torch.tensor(y_train), 2))
+                if epoch == 2:
+                    print(Q)
+                    print(y_train)
+                    print("loss", loss)
+                loss.backward()
+                self.Qfunc.optimizer.step()
+        '''
+
+
+        batch = self.memory.sampling(batch_size)
+
+        for episode, step, seeds_idx, candidates_idx, long_term_reward, mu_s, mu_c, mu_v in batch:
+            _, pred_reward = self.choose_action(step, embedding_history[episode][step],  seeds_idx, candidates_idx, eval_loss=True)
+            y_train.append(long_term_reward + self.gamma*pred_reward)
+            mu_s_list.append(mu_s)
+            mu_c_list.append(mu_c)
+            mu_v_list.append(mu_v)
+
+        torch_dataset = Data.TensorDataset(torch.stack(mu_s_list, 0), torch.stack(mu_c_list, 0), torch.stack(mu_v_list, 0), torch.tensor(y_train))
+        loader = Data.DataLoader(dataset=torch_dataset,
+                                shuffle=False,
+                                batch_size = 3)
+
+        for epoch in range(100):
+            for step, (s_batch, c_batch, v_batch, y_batch) in enumerate(loader):
+                self.Qfunc.optimizer.zero_grad()
+                Q = self.Qfunc(s_batch, c_batch, v_batch, 3)
+                loss = torch.mean(torch.pow((Q - y_batch), 2))
+                loss.backward()
+                self.Qfunc.optimizer.step()
+
+                if epoch == 0:
+                    print(loss)
 
 
 
