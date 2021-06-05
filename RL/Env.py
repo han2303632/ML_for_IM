@@ -33,7 +33,7 @@ class Env:
         node_nbr = self.node2neighbors[node]
         for key in self.node2neighbors.keys():
             if key != node:
-                self.node2neighbors[key] = self.node2neighbors[key] - node_nbr
+                self.node2neighbors[key] = set(self.node2neighbors[key]) - set(node_nbr)
                 self.embedding[self.node2idx[key]][0] = len(self.node2neighbors[key])
             else:
                 self.node2neighbors[key] = set()

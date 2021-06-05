@@ -1,6 +1,7 @@
 from networkx.readwrite  import json_graph
 from sklearn.preprocessing import StandardScaler
 import numpy as np
+import torch
 import pickle
 import json
 
@@ -37,21 +38,32 @@ class Util:
         with open(dataset_dir + "large_graph_node_scores_supgs_%s_nbs_%s.pickle"%(str(num_k), str(sampling_freq)), 'rb') as handle:
             node2score = pickle.load(handle,encoding='iso-8859-1')
 
+
+
         # embedding: node_id -> score , not  index->score
          # load neighbors
         node2neighbors = {}
         dict_node_sampled_neighbors_file_name=dataset_dir + "large_graph-sampled_nbrs_for_rl.pickle"+"_"+ str(num_k)+"_nbs_"+str(sampling_freq)
+    
         with open(dict_node_sampled_neighbors_file_name, 'rb') as handle:
             node2neighbors =pickle.load(handle,encoding='iso-8859-1')
+
+        # -------dd-------------改动
+        # with open(dataset_dir + "top_node_score_path.pickle", 'rb') as handle:
+        #     node2score = pickle.load(handle)
+        # top_nodes = node2score.keys()
+        # dict_node_sampled_neighbors_file_name=dataset_dir + "top_node_nbr_path.pickle"
+        # with open(dict_node_sampled_neighbors_file_name, 'rb') as handle:
+        #     node2neighbors =pickle.load(handle)
+
         
         # graph_size = len(graph)
         # out_deg_wt_graph  = graph.out_degree( weight='weight')
 
-        embeddings = np.ones((len(embeddings_dict), 2), dtype='float64')
-
         node2idx = {}
         idx2node ={}
         gcn_embedding = []
+        embeddings = np.ones((len(embeddings_dict), 2), dtype='float64')
 
         for i, key in enumerate(embeddings_dict.keys()):
             embeddings[i][0] = len(node2neighbors[key])
@@ -61,6 +73,31 @@ class Util:
             gcn_embedding.append(embeddings_dict[key])
         gcn_embedding.append(np.zeros(len(gcn_embedding[0])))
 
+
+        # use self generate node score ----------------------------------------------------
+        '''
+        with open(dataset_dir + "top_node_score_far.pickle", 'rb') as handle:
+            node2score = pickle.load(handle)
+        top_nodes = node2score.keys()
+        dict_node_sampled_neighbors_file_name=dataset_dir + "top_node_nbr_far.pickle"
+        with open(dict_node_sampled_neighbors_file_name, 'rb') as handle:
+            node2neighbors =pickle.load(handle)
+        embeddings = np.ones((len(node2neighbors), 2), dtype='float64')
+
+        node2idx = {}
+        idx2node ={}
+        gcn_embedding = []
+
+        for i, key in enumerate(node2neighbors.keys()):
+            embeddings[i][0] = len(node2neighbors[key])
+            embeddings[i][1] = node2score[key]
+            node2idx[key] = i
+            idx2node[i] = key
+            gcn_embedding.append(np.zeros(120))
+        gcn_embedding.append(np.zeros(len(gcn_embedding[0])))
+ 
+        '''
+        # 下面通用
         # normalize
         scaler = StandardScaler()
         scaler.fit(embeddings)
@@ -70,7 +107,7 @@ class Util:
 
         # return graph, embedding_norm, graph_size, top_nodes_idx, node2neighbors, idx2node, node2idx
         # return None, embedding_norm, None, top_nodes_idx, node2neighbors, idx2node, node2idx
-        return None, embedding_norm, None, top_nodes_idx, node2neighbors, idx2node, node2idx, gcn_embedding
+        return None, embedding_norm, None, top_nodes_idx, node2neighbors, idx2node, node2idx, torch.tensor(gcn_embedding, dtype=torch.float)
 
 
 

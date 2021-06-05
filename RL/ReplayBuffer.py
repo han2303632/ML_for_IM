@@ -10,12 +10,12 @@ class ReplayBuffer():
         # self.rewards = [None] * mem_size
         self.tuple = [None] * mem_size
     
-    def store(self, episode, step, seeds_idx, candidates_idx, reward, mu_s, mu_c, mu_v):
+    def store(self, episode, step, seeds_idx, candidates_idx, reward, mu_s, mu_c, mu_v, gcn_s, gcn_v):
 
         idx = self.counter % self.mem_size
 
         self.tuple[idx] = [episode, step, seeds_idx, candidates_idx
-                            ,reward, mu_s, mu_c, mu_v]
+                            ,reward, mu_s, mu_c, mu_v, gcn_s, gcn_v]
 
 
         self.counter += 1
