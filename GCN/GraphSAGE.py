@@ -144,8 +144,8 @@ class GraphSAGE(nn.Module):
             for node in samples[k]:
                 node = int(node)
                 if len(self.neighbors[node]) < num_samples:
-                    sample_result = list(self.neighbors[node])
-                    sample_result.append(node)
+                    sample_result = list(self.neighbors[node]) + [node]
+                    # sample_result.append(node)
                     valid_sample.append([len(sample_result)])
                     node_nbr_sample = sample_result + [-1 for i in range(num_samples - len(self.neighbors[node]) -1)]
                 else:

@@ -1,0 +1,124 @@
+from Utils import Util
+from Agent import Agent
+from Env import Env
+import numpy as np
+from collections import defaultdict, namedtuple
+import torch
+
+numEpisode = 50
+k = 20
+windowSize = 2
+emb_size = 2
+hidden_size = 200
+gcn_emb_size = 128
+lr = 0.01
+gamma = 0.8
+batch_size = 6
+mem_size = 3 * k
+graph_size = 776564
+model_dir = "./model/model-%d.pkl"%(k)
+# model_dir = "./model/model-%d-best.pkl"%(k)
+# model_dir = "/home/hunt/code4diff/model/model-%d.pkl"%(k)
+SAGEInfo = namedtuple("SAGEInfo",
+    ['layer_name', # name of the layer (to get feature embedding etc.)
+     'neigh_sampler', # callable neigh_sampler constructor
+     'num_samples',
+     'input_dim',
+     'output_dim' # the output (i.e., hidden) dimension
+    ])
+layer_infos = [SAGEInfo("node", None, 15, 2, 128),
+        SAGEInfo("node", None, 15, 128, 128)]
+
+def run():
+    # 加载数据集
+    util = Util()
+    top_nodes_idx, adj_lists, features, node2idx, idx2node = util.load_data("./dataset/train/", k)
+    num_top_nodes = len(top_nodes_idx)
+
+    
+    agent = Agent(model_dir, features, adj_lists, k, lr, gamma, mem_size, top_nodes_idx, num_top_nodes, graph_size, layer_infos)
+    env = Env(node2idx, idx2node, adj_lists)
+    reward  = 0
+    best_reward = 0
+
+
+    for episode in range(numEpisode):
+        print("episode:", episode)
+        env.reset(top_nodes_idx)
+        agent.reset()
+        for step in range(k):
+            action,_ = agent.choose_action(step, env.seeds, env.candidates, top_nodes_idx, env.mask)
+
+            reward = env.react(episode, action)
+
+            agent.reward_history.append(reward)
+
+            if(step >= windowSize):
+                if step == windowSize:
+                    long_term_reward = agent.reward_history[step-1]
+                else:
+                    long_term_reward = agent.reward_history[step-1] - agent.reward_history[step-windowSize-1]
+                seeds_prev, seeds_num_prev, action_prev, mask_prev = agent.state_history[step-windowSize];
+
+                # if long_term_reward > 100:
+                #     long_term_reward = 100
+                
+
+                # agent.memorize(episode, step, env.seeds.copy(), env.candidates.copy(), long_term_reward, mu_s.clone(), mu_c.clone(), mu_v.clone())
+                # seeds_pair_cur = (env.seeds + [-1 for i in range(k - len(env.seeds))], len(env.seeds))
+                seeds_cur = env.seeds.copy()
+                candidates_cur = env.candidates.copy()
+                # candidates_pair_cur = (env.candidates + [-1 for i in range(num_top_nodes - len(env.candidates))], len(env.candidates))
+                agent.memorize(seeds_prev, seeds_num_prev, action_prev , mask_prev, step, seeds_cur, candidates_cur, long_term_reward, env.mask.clone())
+
+
+                if agent.memory.counter > 5:
+                    agent.learn(env.embedding_history, batch_size)
+
+        if episode % 2 == 0 and episode != 0:
+            reward, _ = validate(agent, top_nodes_idx, adj_lists, node2idx, idx2node)
+            if reward > best_reward:
+                torch.save(agent.Qfunc, model_dir)
+                best_reward = reward
+            agent.Qfunc.scheduler.step()
+
+
+
+
+
+
+def validate(agent, top_nodes_idx, adj_lists, node2idx, idx2node):
+    env = Env(node2idx, idx2node, adj_lists)
+    reward = 0
+    env.reset(top_nodes_idx)
+    agent.reset()
+
+    for step in range(k):
+        action, _ = agent.choose_action(step, env.seeds, env.candidates, top_nodes_idx, env.mask, task="predict")
+        reward = env.react(0, action)
+
+    seeds =  [idx2node[node_idx] for node_idx in env.seeds]
+    print("----------------------validation ----------------------")
+    print("seeds", seeds)
+    
+    print("reward", reward )
+    print("-------------------------------------------------------")
+    return reward, seeds
+
+
+def predict():
+    util = Util()
+
+    top_nodes_idx, adj_lists, features, node2idx, idx2node = util.load_data("./dataset/train/", k) 
+    agent = Agent(model_dir, features, adj_lists, k, lr, gamma, mem_size, top_nodes_idx, len(top_nodes_idx), graph_size, layer_infos)
+    env = Env(node2idx, idx2node, adj_lists)
+    reward, seeds = validate(agent, top_nodes_idx, adj_lists, node2idx, idx2node)
+
+            
+
+
+
+
+if __name__ == "__main__":
+    run()
+    # predict()
