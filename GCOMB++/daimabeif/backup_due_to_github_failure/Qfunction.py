@@ -33,8 +33,8 @@ class Qfunction(nn.Module):
         self.zero_pad = torch.zeros(1, self.embed_dim).cuda()
         self.cuda(device=0)
 
-    def forward(self, features, adj_lists, edge_weight, seeds_idx_pad, seeds_idx_num, candidates_idx, all_nodes, mask, rest_idx, batch_size=1):
-        embedding = self.sage(features, adj_lists, edge_weight, all_nodes, mask)
+    def forward(self, features, adj_lists, seeds_idx_pad, seeds_idx_num, candidates_idx, all_nodes, mask, rest_idx, batch_size=1):
+        embedding = self.sage(features, adj_lists, all_nodes, mask)
         embedding_pad = torch.cat((embedding, self.zero_pad), dim=0)
         row_index = torch.tensor([[i] for i in range(batch_size)])
 
@@ -111,12 +111,10 @@ class Qfunction(nn.Module):
         if batch_size is not None:
             seeds_mean = torch.cat([seeds_mean for i in range(batch_size)], dim=0)
             global_mean = torch.cat([global_mean for i in range(batch_size)], dim=0)
-            seeds_emb = torch.cat([seeds_emb for i in range(batch_size)], dim=0)
 
-        sc_mean = nn.Sigmoid()(self.lin1(torch.mean(torch.cat((seeds_emb, candidates_emb.reshape(batch_size, 1, -1)), dim=1), dim=1)))
         
         margin_gain1 = torch.sub(candi_emb, seeds_mean)      
-        margin_gain2 = torch.sub(rest_mean, sc_mean)      
+        margin_gain2 = torch.sub(rest_mean, seeds_mean)      
 
         Q = torch.sum(torch.mul(margin_gain1+margin_gain2, global_mean), dim=1)
         # Q = self.lin5(torch.cat((seeds_mean, global_mean, candi_emb), dim =1))

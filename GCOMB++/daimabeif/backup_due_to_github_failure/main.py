@@ -33,11 +33,11 @@ layer_infos = [SAGEInfo("node", None, 15, 3, 128),
 def run():
     # 加载数据集
     util = Util()
-    top_nodes_idx, adj_lists, edge_weight, features, node2idx, idx2node, num_used_nodes = util.load_data("./dataset/train/", k)
+    top_nodes_idx, adj_lists, features, node2idx, idx2node, num_used_nodes = util.load_data("./dataset/train/", k)
     num_top_nodes = len(top_nodes_idx)
 
     
-    agent = Agent(model_dir, k, lr, gamma, mem_size, graph_size, layer_infos)
+    agent = Agent(model_dir, k, lr, gamma, mem_size, num_top_nodes, graph_size, layer_infos)
     env = Env(node2idx, idx2node, adj_lists, num_used_nodes)
     reward  = 0
     best_reward = 0
@@ -46,11 +46,11 @@ def run():
     for episode in range(numEpisode):
         print("episode:", episode)
         env.reset(top_nodes_idx)
-        agent.reset(features, adj_lists, edge_weight, top_nodes_idx)
+        agent.reset()
         for step in range(k):
-            action,_ = agent.choose_action(step, env.seeds, env.candidates, env.mask)
+            action,_ = agent.choose_action(step, features, adj_lists, env.seeds, env.candidates, top_nodes_idx, env.mask)
 
-            reward = env.react(episode, action, dataset="train")
+            reward = env.react(episode, action)
 
             agent.reward_history.append(reward)
 
@@ -78,7 +78,7 @@ def run():
 
                 # if agent.memory.positive_counter > batch_size and agent.memory.negative_counter > batch_size:
             if agent.memory.counter >= batch_size:
-                agent.learn(batch_size)
+                agent.learn(features, adj_lists, top_nodes_idx, batch_size)
 
         if True:
             reward, _ = predict(agent)
@@ -97,27 +97,24 @@ def run():
 
 
 
-def validate(agent, features, top_nodes_idx, adj_lists, edge_weight, node2idx, idx2node, num_used_nodes, dataset_type="test"):
+def validate(agent, features, top_nodes_idx, adj_lists, node2idx, idx2node, num_used_nodes):
     env = Env(node2idx, idx2node, adj_lists, num_used_nodes)
     reward = 0
     env.reset(top_nodes_idx)
-    agent.reset(features, adj_lists, edge_weight, top_nodes_idx)
+    agent.reset()
 
     for step in range(k):
-        action, value = agent.choose_action(step, env.seeds, env.candidates, env.mask, task = "predict")
+        action, _ = agent.choose_action(step, features, adj_lists, env.seeds, env.candidates, top_nodes_idx, env.mask, task="predict")
         if step == k-1:
-            # reward = env.react(0, action, task="test", ignore_reward=False)
-            reward = env.react(0, action, dataset=dataset_type, ignore_reward=False)
+            reward = env.react(0, action, task="test", ignore_reward=False)
         else:
-            # reward = env.react(0, action, task="test", ignore_reward=True)
-            reward = env.react(0, action, dataset=dataset_type, ignore_reward=True)
+            reward = env.react(0, action, task="test", ignore_reward=True)
 
     seeds =  [idx2node[node_idx] for node_idx in env.seeds]
     print("----------------------validation ----------------------")
     print("seeds", seeds)
     
     print("reward", reward )
-    print("value", value)
     print("-------------------------------------------------------")
     return reward, seeds
 
@@ -126,12 +123,10 @@ def predict(agent=None):
     util = Util()
     g_size = 1079712
 
-    top_nodes_idx, adj_lists, edge_weight, features, node2idx, idx2node, num_used_nodes = util.load_data("./dataset/test/", k) 
-    # top_nodes_idx, adj_lists, nodes_nbr_weight, features, node2idx, idx2node, num_used_nodes = util.load_data("./dataset/train/", k) 
+    top_nodes_idx, adj_lists, features, node2idx, idx2node, num_used_nodes = util.load_data("./dataset/test/", k) 
     if agent is None:
-        agent = Agent(model_dir, k, lr, gamma, mem_size, g_size, layer_infos)
-    reward, seeds = validate(agent, features, top_nodes_idx, adj_lists, edge_weight, node2idx, idx2node, num_used_nodes, dataset_type="test")
-    # reward, seeds = validate(agent, features, top_nodes_idx, adj_lists, node2idx, idx2node, num_used_nodes, dataset_type="train")
+        agent = Agent(model_dir, adj_lists, k, lr, gamma, mem_size, len(top_nodes_idx), g_size, layer_infos)
+    reward, seeds = validate(agent, features, top_nodes_idx, adj_lists, node2idx, idx2node, num_used_nodes)
 
     return reward,  seeds
 

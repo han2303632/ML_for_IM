@@ -5,34 +5,35 @@ import copy
 from sklearn.preprocessing import StandardScaler
 class Env:
 
-    def __init__(self, node2idx, idx2node, adj_lists, used_nodes_size):
+    def __init__(self, gcn_embedding):
         self.embedding_history = []
-        self.node2idx = node2idx
-        self.idx2node = idx2node
-        self.adj_lists = adj_lists
-        self.num_used_nodes = used_nodes_size
+        self.gcn_embedding = gcn_embedding
 
-    def reset(self, candidates):
+    def reset(self, episode, embedding, embed_size, graph, g_size, candidates, node2neighbors, node2idx, idx2node):
+        self.graph = graph
+        self.g_size = g_size
         self.candidates = candidates.copy()
         self.seeds = []
-        self.mask = torch.BoolTensor([[1] for i in range(self.num_used_nodes)]).cuda()
+        self.node2neighbors = copy.deepcopy(node2neighbors)
+        self.node2idx = node2idx
+        self.idx2node = idx2node
+
+        self.embedding = torch.from_numpy(embedding).clone().float()
+        self.embedding_history.append([])
+        self.embedding_history[episode].append(self.embedding.clone());
 
 
 
-    def react(self, episode, choosed_idx, dataset, ignore_reward=False):
+    def react(self, episode, choosed_idx):
         self.candidates.remove(choosed_idx)
         self.seeds.append(choosed_idx)
-        self.mask[choosed_idx] = torch.tensor([0])
-        for nbr_idx in self.adj_lists[choosed_idx]:
-            self.mask[nbr_idx] = torch.tensor([0])
-        
-        '''
+
         # update locality
         node = self.idx2node[choosed_idx]
         node_nbr = self.node2neighbors[node]
         for key in self.node2neighbors.keys():
             if key != node:
-                self.node2neighbors[key] = set(self.node2neighbors[key]) - set(node_nbr)
+                self.node2neighbors[key] = self.node2neighbors[key] - node_nbr
                 self.embedding[self.node2idx[key]][0] = len(self.node2neighbors[key])
             else:
                 self.node2neighbors[key] = set()
@@ -48,18 +49,16 @@ class Env:
         # normalize after parameter update
         # self.embedding = torch.nn.functional.normalize(self.embedding, dim=0)
         self.embedding_history[episode].append(self.embedding.clone())
-        '''
 
-        reward = 0
+
         # calculate and save reward
-        if not ignore_reward:
-            reward = self.eval_single_step_reward(dataset)
+        reward = self.eval_single_step_reward()
 
         return reward
 
 
-    def eval_single_step_reward(self, task):
-        graph_dir = "../influence_evaluate/data/youtube_" + task + "/mc_sim"
+    def eval_single_step_reward(self):
+        graph_dir = "../influence_evaluate/data/youtube_train/mc_sim"
         reward = -1
         command = "../influence_evaluate/influenceEval "  + "-dataset %s -seeds %s -task seed_eval"%(
             graph_dir, ",".join([str(self.idx2node[idx]) for idx in self.seeds])

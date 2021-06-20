@@ -77,12 +77,12 @@ def run():
     feat_data, labels, adj_lists = load_cora()
 
 
-    layer_infos = [SAGEInfo("node", None, 10, feat_dim, hidden_dim),
-        SAGEInfo("node", None, 10, hidden_dim, hidden_dim)]
+    layer_infos = [SAGEInfo("node", None, 5, feat_dim, hidden_dim),
+        SAGEInfo("node", None, 5, hidden_dim, hidden_dim)]
     sage = GraphSAGE(feat_data, num_nodes, layer_infos, 0, adj_lists)
     # sage = GraphSAGE(feat_data, num_nodes, feat_dim, layer_infos, adj_lists)
     graphsage = SupervisedGraphSage(7, sage)
-    graphsage.cuda()
+#    graphsage.cuda()
     rand_indices = np.random.permutation(num_nodes)
     test = rand_indices[:1000]
     val = rand_indices[1000:1500]

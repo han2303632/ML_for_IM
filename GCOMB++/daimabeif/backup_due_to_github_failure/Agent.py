@@ -10,11 +10,12 @@ from Qfunction import Qfunction
 
 
 class Agent:
-    def __init__(self, model_dir, k, lr, gamma, mem_size, graph_size, layer_infos, epsilon=0.8, eps_decay = 20E-4, replace_target=50):
+    def __init__(self, model_dir, k, lr, gamma, mem_size, num_top_nodes, graph_size, layer_infos, epsilon=0.8, eps_decay = 20E-4, replace_target=50):
         self.reward_history = []
         self.state_history = []
         self.gamma = gamma
         self.k = k
+        self.num_top_nodes = num_top_nodes
         self.epsilon = epsilon
         self.eps_decay = eps_decay
         self.target_Q = Qfunction(layer_infos, graph_size, lr)
@@ -30,20 +31,16 @@ class Agent:
         # self.Qfunc.cuda(device=0)
         self.memory = ReplayBuffer(mem_size)
 
-    def reset(self, features, adj_lists, edge_weight, all_nodes):
+    def reset(self):
         self.reward_history = []
         self.state_history = []
-        self.features = features
-        self.adj_lists = adj_lists
-        self.edge_weight = edge_weight
-        self.all_nodes = all_nodes
 
     # 做出某个行为
-    def choose_action(self, step, seeds_idx, candidates_idx,  mask, task="train"):
+    def choose_action(self, step, features, adj_lists, seeds_idx, candidates_idx, all_nodes, mask, task="train"):
         action = 0
         reward = 0
         randOutput = np.random.rand()
-        rest_idx_set = set(self.all_nodes) - set(seeds_idx)
+        rest_idx_set = set(all_nodes) - set(seeds_idx)
 
         if seeds_idx == []:
             seeds_idx = [-1]
@@ -58,7 +55,7 @@ class Agent:
         #     Q = self.target_Q(seeds_idx_pad, seeds_idx_num, torch.tensor(candidates_idx).cuda(), all_nodes, mask, rest_idx, batch_size=len(candidates_idx))
         # else:
         #     Q = self.Qfunc(seeds_idx_pad, seeds_idx_num, torch.tensor(candidates_idx).cuda(), all_nodes, mask, rest_idx, batch_size=len(candidates_idx))
-        Q = self.Qfunc(self.features, self.adj_lists, self.edge_weight, seeds_idx_pad, seeds_idx_num, torch.tensor(candidates_idx).cuda(), self.all_nodes, mask, rest_idx, batch_size=len(candidates_idx))
+        Q = self.Qfunc(features, adj_lists, seeds_idx_pad, seeds_idx_num, torch.tensor(candidates_idx).cuda(), all_nodes, mask, rest_idx, batch_size=len(candidates_idx))
 
         action, reward = self._max(Q, candidates_idx)
 
@@ -109,7 +106,7 @@ class Agent:
 
 
     # 调整参数
-    def learn(self, batch_size):
+    def learn(self, features, adj_lists, all_nodes, batch_size):
 
         # self.learn_step_cntr += 1
         #if self.learn_step_cntr % self.replace_target == 1:
@@ -119,7 +116,7 @@ class Agent:
         batch = self.memory.sampling(batch_size)
         for i in range(batch_size):
             seeds_prev, seeds_num_prev, action_prev , mask_prev, rest_idx, step, seeds_cur, candidates_cur, long_term_reward, mask_cur = batch[i]
-            _, pred_reward = self.choose_action(step, seeds_cur, candidates_cur, mask_cur, task="update")
+            _, pred_reward = self.choose_action(step, features, adj_lists, seeds_cur, candidates_cur, all_nodes, mask_cur, task="update")
             batch[i] = [seeds_prev, seeds_num_prev, action_prev , mask_prev, rest_idx, step, seeds_cur, candidates_cur, long_term_reward, mask_cur, float(pred_reward)]
 
         for i in range(2):
@@ -127,7 +124,7 @@ class Agent:
 
             for seeds_prev, seeds_num_prev, action_prev , mask_prev, rest_idx, step, seeds_cur, candidates_cur, long_term_reward, mask_cur, pred in batch:
                 self.Qfunc.optimizer.zero_grad()
-                Q_prev = self.Qfunc(self.features, self.adj_lists, self.edge_weight, torch.tensor([seeds_prev]).cuda(), torch.tensor([seeds_num_prev]).cuda(), torch.tensor([action_prev]).cuda(), self.all_nodes, mask_prev.cuda(), torch.tensor([rest_idx]).cuda())
+                Q_prev = self.Qfunc(features, adj_lists, torch.tensor([seeds_prev]).cuda(), torch.tensor([seeds_num_prev]).cuda(), torch.tensor([action_prev]).cuda(), all_nodes, mask_prev.cuda(), torch.tensor([rest_idx]).cuda())
 
                 # loss = torch.mean(torch.pow((Q_prev - (self.gamma * pred_reward + long_term_reward)), 2))
                 loss = torch.mean(torch.pow(((self.gamma * pred + long_term_reward) - Q_prev), 2))

@@ -48,7 +48,7 @@ class Util:
         for key, value in id2idx.items():
             idx2id[value] = key
 
-        return [id2idx[node] for node in top_nodes], nodes_nbr, nodes_info["edge_weight"], torch.FloatTensor(nodes_features).cuda(), id2idx, idx2id, nodes_info["num_used_nodes"]
+        return [id2idx[node] for node in top_nodes], nodes_nbr, torch.FloatTensor(nodes_features).cuda(), id2idx, idx2id, nodes_info["num_used_nodes"]
 
 
         

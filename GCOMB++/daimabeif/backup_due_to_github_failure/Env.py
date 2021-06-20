@@ -19,7 +19,7 @@ class Env:
 
 
 
-    def react(self, episode, choosed_idx, dataset, ignore_reward=False):
+    def react(self, episode, choosed_idx, task="train", ignore_reward=False):
         self.candidates.remove(choosed_idx)
         self.seeds.append(choosed_idx)
         self.mask[choosed_idx] = torch.tensor([0])
@@ -53,7 +53,7 @@ class Env:
         reward = 0
         # calculate and save reward
         if not ignore_reward:
-            reward = self.eval_single_step_reward(dataset)
+            reward = self.eval_single_step_reward(task)
 
         return reward
 
